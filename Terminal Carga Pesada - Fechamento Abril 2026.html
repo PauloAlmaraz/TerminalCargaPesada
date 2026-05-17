@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terminal Carga Pesada — Fechamento Abril 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a1628;--card:#112040;--sec:#0d1f3a;--panel:#162d4e;
+  --accent:#5eb3f5;--accent2:#3a8fd4;--text:#e8f4ff;--muted:#7aacda;
+  --danger:#ff6b6b;--success:#4ecdc4;--warn:#ffa756;--gold:#f5c842;
+  --alt:#0e1e38;--border:#1e3a5f;--hover:#1a3660;
+  --tab-active:#162d4e;--tab-inactive:#0d1f3a;
+}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,Arial,sans-serif;font-size:13px;line-height:1.5;min-height:100vh}
+
+/* ── TOPBAR ── */
+.topbar{background:linear-gradient(135deg,#0d1f3a 0%,#112040 100%);border-bottom:3px solid var(--accent);padding:0;position:sticky;top:0;z-index:100;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+.topbar-inner{max-width:1100px;margin:0 auto;padding:14px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.tb-left .company{font-size:18px;font-weight:800;color:var(--accent);letter-spacing:.3px}
+.tb-left .period{font-size:11px;color:var(--muted);margin-top:2px}
+.tb-kpis{display:flex;gap:8px;flex-wrap:wrap}
+.tb-kpi{background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;padding:7px 14px;text-align:center;min-width:90px}
+.tb-kpi .k-val{font-size:15px;font-weight:800;color:var(--text);display:block;line-height:1.1}
+.tb-kpi .k-val.pos{color:var(--success)}.tb-kpi .k-val.neg{color:var(--danger)}.tb-kpi .k-val.gold{color:var(--gold)}
+.tb-kpi .k-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+
+/* ── TABS ── */
+.tabs{background:var(--sec);border-bottom:1px solid var(--border);position:sticky;top:80px;z-index:90}
+.tabs-inner{max-width:1100px;margin:0 auto;padding:0 24px;display:flex;gap:2px}
+.tab{padding:12px 20px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;border:none;background:none;border-bottom:3px solid transparent;transition:all .2s;white-space:nowrap;text-transform:uppercase;letter-spacing:.5px}
+.tab:hover{color:var(--text);background:rgba(255,255,255,.04)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);background:rgba(94,179,245,.06)}
+
+/* ── CONTENT ── */
+.content{max-width:1100px;margin:0 auto;padding:24px}
+.section{display:none}.section.active{display:block}
+
+/* ── RESULT BOX ── */
+.result-banner{background:linear-gradient(135deg,var(--card) 0%,#0e2040 100%);border:1px solid var(--border);border-left:5px solid var(--danger);border-radius:12px;padding:20px 28px;margin-bottom:22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
+.rb-item{text-align:center}
+.rb-item .rb-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.rb-item .rb-val{font-size:22px;font-weight:800;color:var(--text)}
+.rb-item .rb-val.pos{color:var(--success)}.rb-item .rb-val.neg{color:var(--danger)}
+.rb-divider{width:1px;background:var(--border);height:48px;align-self:center}
+
+/* ── GRID CARDS ── */
+.card-grid{display:grid;gap:16px;margin-bottom:22px}
+.grid-4{grid-template-columns:repeat(4,1fr)}
+.grid-2{grid-template-columns:1fr 1fr}
+.grid-3{grid-template-columns:repeat(3,1fr)}
+@media(max-width:900px){.grid-4{grid-template-columns:1fr 1fr}.grid-3{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.grid-4,.grid-3,.grid-2{grid-template-columns:1fr}}
+
+.card{background:var(--card);border-radius:12px;padding:18px 20px;border:1px solid var(--border);transition:transform .15s,box-shadow .15s}
+.card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.card.accent{border-left:4px solid var(--accent)}
+.card.danger{border-left:4px solid var(--danger)}
+.card.success{border-left:4px solid var(--success)}
+.card.gold{border-left:4px solid var(--gold)}
+.card .c-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.card .c-val{font-size:26px;font-weight:800;color:var(--text);line-height:1}
+.card.danger .c-val{color:var(--danger)}.card.success .c-val{color:var(--success)}.card.gold .c-val{color:var(--gold)}
+.card .c-sub{font-size:11px;color:var(--muted);margin-top:6px}
+
+/* ── PANEL (chart container) ── */
+.panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
+.panel-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px}
+.panel-title{font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.6px}
+.panel-badge{font-size:11px;color:var(--muted);background:var(--sec);border:1px solid var(--border);border-radius:6px;padding:3px 10px}
+.chart-wrap{position:relative;height:240px}
+.chart-wrap.tall{height:320px}
+.chart-wrap.short{height:180px}
+
+/* ── TABLE ── */
+.tbl-wrap{overflow-x:auto;border-radius:0 0 10px 10px}
+table{width:100%;border-collapse:collapse}
+thead th{background:var(--sec);color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;padding:10px 14px;text-align:left;font-weight:600;white-space:nowrap;cursor:pointer;user-select:none;transition:background .15s}
+thead th:hover{background:var(--hover);color:var(--text)}
+thead th.sorted-asc::after{content:' ▲';color:var(--accent)}
+thead th.sorted-desc::after{content:' ▼';color:var(--accent)}
+thead th.r{text-align:right}
+tbody tr{transition:background .12s;cursor:default}
+tbody tr:hover td{background:var(--hover)!important}
+tbody td{background:var(--card);color:var(--text);padding:10px 14px;font-size:12px;border-bottom:1px solid var(--border);transition:background .12s}
+tbody tr:nth-child(even) td{background:var(--alt)}
+tbody td.r{text-align:right;font-weight:600}
+tfoot td{background:var(--sec);color:var(--gold);padding:11px 14px;font-size:12px;font-weight:700;border-top:2px solid var(--border)}
+tfoot td.r{text-align:right}
+
+/* ── PILLS ── */
+.pill{display:inline-block;border-radius:5px;padding:2px 9px;font-size:10px;font-weight:700;letter-spacing:.3px}
+.pill.pos{background:rgba(78,205,196,.15);color:var(--success);border:1px solid rgba(78,205,196,.3)}
+.pill.neg{background:rgba(255,107,107,.15);color:var(--danger);border:1px solid rgba(255,107,107,.3)}
+.pill.neu{background:rgba(94,179,245,.12);color:var(--accent);border:1px solid rgba(94,179,245,.25)}
+.pill.gold{background:rgba(245,200,66,.12);color:var(--gold);border:1px solid rgba(245,200,66,.25)}
+
+/* ── SEARCH / FILTER ── */
+.filter-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.filter-row input{background:var(--sec);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:7px 12px;font-size:12px;outline:none;transition:border-color .2s;width:220px}
+.filter-row input:focus{border-color:var(--accent)}
+.filter-row input::placeholder{color:var(--muted)}
+.filter-count{font-size:11px;color:var(--muted);margin-left:auto}
+
+/* ── BAR ROWS ── */
+.bar-list{padding:4px 0}
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.bar-lbl{font-size:12px;color:var(--text);width:150px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-track{flex:1;background:var(--sec);border-radius:5px;height:16px;overflow:hidden}
+.bar-fill{height:100%;border-radius:5px;transition:width 1s cubic-bezier(.4,0,.2,1);width:0}
+.bar-fill.a{background:linear-gradient(90deg,var(--accent2),var(--accent))}
+.bar-fill.s{background:linear-gradient(90deg,#2da89e,var(--success))}
+.bar-fill.g{background:linear-gradient(90deg,#c9a000,var(--gold))}
+.bar-fill.d{background:linear-gradient(90deg,#c04040,var(--danger))}
+.bar-fill.m{background:linear-gradient(90deg,#7a5fcc,#a07af5)}
+.bar-val{font-size:11px;color:var(--muted);width:80px;text-align:right;flex-shrink:0}
+
+/* ── STAT ROWS ── */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.stat-item{background:var(--sec);border-radius:8px;padding:12px 16px;border:1px solid var(--border)}
+.stat-item .s-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
+.stat-item .s-val{font-size:16px;font-weight:700;color:var(--text)}
+.stat-item .s-val.neg{color:var(--danger)}.stat-item .s-val.pos{color:var(--success)}.stat-item .s-val.gold{color:var(--gold)}
+
+/* ── DONUT LEGEND ── */
+.legend{margin-top:12px}
+.legend-item{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.legend-pct{margin-left:auto;color:var(--muted);font-weight:600}
+
+/* ── ALERTS ── */
+.alert-box{border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:12px;display:flex;align-items:flex-start;gap:10px}
+.alert-box.warn{background:rgba(255,167,86,.1);border:1px solid rgba(255,167,86,.3);color:var(--warn)}
+.alert-box.danger{background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);color:var(--danger)}
+.alert-icon{font-size:16px;flex-shrink:0}
+
+/* ── SECTION TITLE ── */
+.sec-title{font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.7px;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+
+/* ── FOOTER ── */
+.footer{text-align:center;font-size:10px;color:var(--muted);padding:18px 0 12px;border-top:1px solid var(--border);margin-top:8px}
+.footer span{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ TOPBAR ═══════════════ -->
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="tb-left">
+      <div class="company">⚓ Terminal Carga Pesada</div>
+      <div class="period">Fechamento Financeiro — Abril 2026 · Guarujá, SP</div>
+    </div>
+    <div class="tb-kpis">
+      <div class="tb-kpi">
+        <span class="k-val pos" id="kpi-rec">R$89.077</span>
+        <div class="k-lbl">Receita</div>
+      </div>
+      <div class="tb-kpi">
+        <span class="k-val neg" id="kpi-desp">R$98.954</span>
+        <div class="k-lbl">Despesas</div>
+      </div>
+      <div class="tb-kpi">
+        <span class="k-val neg" id="kpi-res">–R$9.877</span>
+        <div class="k-lbl">Resultado</div>
+      </div>
+      <div class="tb-kpi">
+        <span class="k-val gold" id="kpi-cont">260</span>
+        <div class="k-lbl">Containers</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ TABS ═══════════════ -->
+<div class="tabs">
+  <div class="tabs-inner">
+    <button class="tab active" data-tab="geral">📊 Visão Geral</button>
+    <button class="tab" data-tab="receita">💰 Receita</button>
+    <button class="tab" data-tab="despesas">📋 Despesas</button>
+    <button class="tab" data-tab="containers">🚢 Containers</button>
+    <button class="tab" data-tab="operacional">📈 Operacional</button>
+  </div>
+</div>
+
+<!-- ═══════════════ CONTENT ═══════════════ -->
+<div class="content">
+
+<!-- ══ TAB: VISÃO GERAL ══ -->
+<div class="section active" id="tab-geral">
+
+  <div class="alert-box danger">
+    <span class="alert-icon">⚠️</span>
+    <div><strong>Resultado negativo em Abril 2026:</strong> As despesas superaram a receita em R$ 9.877,00, gerando um prejuízo operacional de –11,1% sobre a receita. Os principais vetores são aluguel de pátios e folha de pessoal.</div>
+  </div>
+
+  <div class="result-banner">
+    <div class="rb-item">
+      <div class="rb-lbl">Receita Total</div>
+      <div class="rb-val pos" id="anim-rec">R$ 89.076,62</div>
+    </div>
+    <div class="rb-divider"></div>
+    <div class="rb-item" style="text-align:center">
+      <div class="rb-lbl">Resultado do Período</div>
+      <div class="rb-val neg" style="font-size:28px" id="anim-res">–R$ 9.877,00</div>
+    </div>
+    <div class="rb-divider"></div>
+    <div class="rb-item" style="text-align:right">
+      <div class="rb-lbl">Despesas Total</div>
+      <div class="rb-val neg" id="anim-desp">R$ 98.953,62</div>
+    </div>
+  </div>
+
+  <div class="card-grid grid-4">
+    <div class="card accent">
+      <div class="c-lbl">Receita Total</div>
+      <div class="c-val">R$89.077</div>
+      <div class="c-sub">4 fontes de receita</div>
+    </div>
+    <div class="card danger">
+      <div class="c-lbl">Despesas Total</div>
+      <div class="c-val">R$98.954</div>
+      <div class="c-sub">38 lançamentos</div>
+    </div>
+    <div class="card danger">
+      <div class="c-lbl">Resultado</div>
+      <div class="c-val">–R$9.877</div>
+      <div class="c-sub">Prejuízo no período</div>
+    </div>
+    <div class="card gold">
+      <div class="c-lbl">Containers</div>
+      <div class="c-val">260</div>
+      <div class="c-sub">Saídas em Abril 2026</div>
+    </div>
+  </div>
+
+  <div class="card-grid grid-2">
+    <!-- Receita por Serviço -->
+    <div class="panel">
+      <div class="panel-hdr">
+        <span class="panel-title">Receita por Serviço</span>
+        <span class="panel-badge">R$ 89.076,62</span>
+      </div>
+      <div class="bar-list">
+        <div class="bar-row">
+          <span class="bar-lbl">Movimentação</span>
+          <div class="bar-track"><div class="bar-fill a" data-w="75.3"></div></div>
+          <span class="bar-val">R$67.110 · 75,3%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">Transporte</span>
+          <div class="bar-track"><div class="bar-fill s" data-w="20.3"></div></div>
+          <span class="bar-val">R$18.100 · 20,3%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">Pernoite</span>
+          <div class="bar-track"><div class="bar-fill g" data-w="4.2"></div></div>
+          <span class="bar-val">R$3.750 · 4,2%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">Impressão</span>
+          <div class="bar-track"><div class="bar-fill m" data-w="0.5"></div></div>
+          <span class="bar-val">R$117 · 0,1%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top Despesas -->
+    <div class="panel">
+      <div class="panel-hdr">
+        <span class="panel-title">Top 5 Despesas</span>
+        <span class="panel-badge">R$ 98.953,62</span>
+      </div>
+      <div class="bar-list">
+        <div class="bar-row">
+          <span class="bar-lbl">ACTA Aluguel Pátio 2</span>
+          <div class="bar-track"><div class="bar-fill d" data-w="22.0"></div></div>
+          <span class="bar-val">R$21.748 · 22%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">Débito Arrecadação</span>
+          <div class="bar-track"><div class="bar-fill d" data-w="11.5"></div></div>
+          <span class="bar-val">R$11.420 · 11,5%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">Aluguel Pátio 1</span>
+          <div class="bar-track"><div class="bar-fill d" data-w="10.1"></div></div>
+          <span class="bar-val">R$10.000 · 10,1%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">Motorista Anderson</span>
+          <div class="bar-track"><div class="bar-fill d" data-w="8.2"></div></div>
+          <span class="bar-val">R$8.080 · 8,2%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">Motorista Rafael</span>
+          <div class="bar-track"><div class="bar-fill d" data-w="5.1"></div></div>
+          <span class="bar-val">R$5.050 · 5,1%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-grid grid-3">
+    <div class="card success">
+      <div class="c-lbl">Ticket Médio / Container</div>
+      <div class="c-val" style="font-size:22px">R$258,12</div>
+      <div class="c-sub">Receita ÷ 260 containers</div>
+    </div>
+    <div class="card danger">
+      <div class="c-lbl">Custo Médio / Container</div>
+      <div class="c-val" style="font-size:22px">R$380,59</div>
+      <div class="c-sub">Despesas ÷ 260 containers</div>
+    </div>
+    <div class="card danger">
+      <div class="c-lbl">Margem Bruta</div>
+      <div class="c-val" style="font-size:22px">–11,1%</div>
+      <div class="c-sub">Resultado ÷ Receita</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ TAB: RECEITA ══ -->
+<div class="section" id="tab-receita">
+  <div class="card-grid grid-2">
+    <div class="panel">
+      <div class="panel-hdr">
+        <span class="panel-title">Composição da Receita</span>
+        <span class="panel-badge">Abril 2026</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chartReceita"></canvas>
+      </div>
+      <div class="legend" id="legReceita"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr">
+        <span class="panel-title">Evolução por Serviço</span>
+        <span class="panel-badge">Participação %</span>
+      </div>
+      <div class="bar-list" style="margin-top:8px">
+        <div class="bar-row">
+          <span class="bar-lbl">Movimentação</span>
+          <div class="bar-track"><div class="bar-fill a" data-w="75.3"></div></div>
+          <span class="bar-val">75,3%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">Transporte</span>
+          <div class="bar-track"><div class="bar-fill s" data-w="20.3"></div></div>
+          <span class="bar-val">20,3%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">Pernoite</span>
+          <div class="bar-track"><div class="bar-fill g" data-w="4.2"></div></div>
+          <span class="bar-val">4,2%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">Impressão</span>
+          <div class="bar-track"><div class="bar-fill m" data-w="0.5"></div></div>
+          <span class="bar-val">0,1%</span>
+        </div>
+      </div>
+      <div class="stat-grid" style="margin-top:16px">
+        <div class="stat-item">
+          <div class="s-lbl">Receita Principal</div>
+          <div class="s-val">R$ 67.110,00</div>
+        </div>
+        <div class="stat-item">
+          <div class="s-lbl">Containers Faturados</div>
+          <div class="s-val gold">260 unid.</div>
+        </div>
+        <div class="stat-item">
+          <div class="s-lbl">Viagens de Transporte</div>
+          <div class="s-val">66 viagens</div>
+        </div>
+        <div class="stat-item">
+          <div class="s-lbl">Ticket Médio</div>
+          <div class="s-val pos">R$ 258,12</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-hdr">
+      <span class="panel-title">Receita por Serviço — Detalhado</span>
+      <span class="panel-badge">Total: R$ 89.076,62</span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Serviço</th>
+          <th>Quantidade</th>
+          <th class="r">Valor (R$)</th>
+          <th class="r">Participação</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td>Movimentação de Containers</td>
+            <td>260 containers</td>
+            <td class="r">67.110,00</td>
+            <td class="r"><span class="pill pos">75,3%</span></td>
+          </tr>
+          <tr>
+            <td>Transporte de Containers</td>
+            <td>66 viagens</td>
+            <td class="r">18.100,00</td>
+            <td class="r"><span class="pill pos">20,3%</span></td>
+          </tr>
+          <tr>
+            <td>Pernoite</td>
+            <td>2 estadias</td>
+            <td class="r">3.750,00</td>
+            <td class="r"><span class="pill pos">4,2%</span></td>
+          </tr>
+          <tr>
+            <td>Impressão</td>
+            <td>52 folhas</td>
+            <td class="r">116,62</td>
+            <td class="r"><span class="pill neu">0,1%</span></td>
+          </tr>
+        </tbody>
+        <tfoot><tr>
+          <td colspan="2">TOTAL RECEITA</td>
+          <td class="r">89.076,62</td>
+          <td></td>
+        </tr></tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ TAB: DESPESAS ══ -->
+<div class="section" id="tab-despesas">
+  <div class="card-grid grid-2">
+    <div class="panel">
+      <div class="panel-hdr">
+        <span class="panel-title">Distribuição de Despesas</span>
+        <span class="panel-badge">38 lançamentos</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chartDespesas"></canvas>
+      </div>
+      <div class="legend" id="legDespesas"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr">
+        <span class="panel-title">Top 8 por Valor</span>
+        <span class="panel-badge">% sobre total</span>
+      </div>
+      <div class="bar-list" style="margin-top:4px">
+        <div class="bar-row"><span class="bar-lbl" style="width:170px;font-size:11px">ACTA Aluguel Pátio 2</span><div class="bar-track"><div class="bar-fill d" data-w="22"></div></div><span class="bar-val">22,0%</span></div>
+        <div class="bar-row"><span class="bar-lbl" style="width:170px;font-size:11px">Débito Arrecadação</span><div class="bar-track"><div class="bar-fill d" data-w="11.5"></div></div><span class="bar-val">11,5%</span></div>
+        <div class="bar-row"><span class="bar-lbl" style="width:170px;font-size:11px">Aluguel Pátio 1</span><div class="bar-track"><div class="bar-fill d" data-w="10.1"></div></div><span class="bar-val">10,1%</span></div>
+        <div class="bar-row"><span class="bar-lbl" style="width:170px;font-size:11px">Motorista Anderson</span><div class="bar-track"><div class="bar-fill d" data-w="8.2"></div></div><span class="bar-val">8,2%</span></div>
+        <div class="bar-row"><span class="bar-lbl" style="width:170px;font-size:11px">Motorista Rafael</span><div class="bar-track"><div class="bar-fill d" data-w="5.1"></div></div><span class="bar-val">5,1%</span></div>
+        <div class="bar-row"><span class="bar-lbl" style="width:170px;font-size:11px">VR Benefícios</span><div class="bar-track"><div class="bar-fill d" data-w="4.65"></div></div><span class="bar-val">4,7%</span></div>
+        <div class="bar-row"><span class="bar-lbl" style="width:170px;font-size:11px">Porta</span><div class="bar-track"><div class="bar-fill d" data-w="4.29"></div></div><span class="bar-val">4,3%</span></div>
+        <div class="bar-row"><span class="bar-lbl" style="width:170px;font-size:11px">ACTA</span><div class="bar-track"><div class="bar-fill d" data-w="4.04"></div></div><span class="bar-val">4,0%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-hdr">
+      <span class="panel-title">Despesas do Período — Completo</span>
+      <span class="panel-badge">38 lançamentos</span>
+    </div>
+    <div class="filter-row">
+      <input type="text" id="filtDesp" placeholder="🔍 Filtrar por descrição…" oninput="filtrarDespesas()">
+      <span class="filter-count" id="filtCount">21 itens</span>
+    </div>
+    <div class="tbl-wrap">
+      <table id="tblDespesas">
+        <thead><tr>
+          <th onclick="sortTable('tblDespesas',0)">Descrição</th>
+          <th class="r" onclick="sortTable('tblDespesas',1)">Valor (R$)</th>
+          <th class="r" onclick="sortTable('tblDespesas',2)">Part. %</th>
+        </tr></thead>
+        <tbody id="tbodyDesp">
+          <tr><td>ACTA — Aluguel Pátio 2</td><td class="r" data-val="21747.50">21.747,50</td><td class="r" data-pct="22.0"><span class="pill neg">22,0%</span></td></tr>
+          <tr><td>Débito Arrecadação</td><td class="r" data-val="11420.42">11.420,42</td><td class="r" data-pct="11.5"><span class="pill neg">11,5%</span></td></tr>
+          <tr><td>Aluguel Pátio 1 — Novo Carga Pesada</td><td class="r" data-val="10000">10.000,00</td><td class="r" data-pct="10.1"><span class="pill neg">10,1%</span></td></tr>
+          <tr><td>Motorista Anderson</td><td class="r" data-val="8080">8.080,00</td><td class="r" data-pct="8.2"><span class="pill neg">8,2%</span></td></tr>
+          <tr><td>Motorista Rafael</td><td class="r" data-val="5050">5.050,00</td><td class="r" data-pct="5.1"><span class="pill neg">5,1%</span></td></tr>
+          <tr><td>VR Benefícios</td><td class="r" data-val="4603">4.603,00</td><td class="r" data-pct="4.65"><span class="pill neg">4,7%</span></td></tr>
+          <tr><td>Porta</td><td class="r" data-val="4245">4.245,00</td><td class="r" data-pct="4.29"><span class="pill neg">4,3%</span></td></tr>
+          <tr><td>ACTA</td><td class="r" data-val="4000">4.000,00</td><td class="r" data-pct="4.04"><span class="pill neg">4,0%</span></td></tr>
+          <tr><td>Depósito do Alemão</td><td class="r" data-val="3400">3.400,00</td><td class="r" data-pct="3.44"><span class="pill neg">3,4%</span></td></tr>
+          <tr><td>Fernandes / Moacir / Aline</td><td class="r" data-val="3000">3.000,00</td><td class="r" data-pct="3.03"><span class="pill neg">3,0%</span></td></tr>
+          <tr><td>Andre Luiz</td><td class="r" data-val="2890">2.890,00</td><td class="r" data-pct="2.92"><span class="pill neg">2,9%</span></td></tr>
+          <tr><td>Wagner Alves</td><td class="r" data-val="2040">2.040,00</td><td class="r" data-pct="2.06"><span class="pill neg">2,1%</span></td></tr>
+          <tr><td>CEF Matriz</td><td class="r" data-val="1988.13">1.988,13</td><td class="r" data-pct="2.01"><span class="pill neg">2,0%</span></td></tr>
+          <tr><td>ADM</td><td class="r" data-val="1707.82">1.707,82</td><td class="r" data-pct="1.73"><span class="pill neg">1,7%</span></td></tr>
+          <tr><td>José Carlos Melo</td><td class="r" data-val="1702">1.702,00</td><td class="r" data-pct="1.72"><span class="pill neg">1,7%</span></td></tr>
+          <tr><td>Victor Carlos</td><td class="r" data-val="1561">1.561,00</td><td class="r" data-pct="1.58"><span class="pill neg">1,6%</span></td></tr>
+          <tr><td>Finansys</td><td class="r" data-val="1500">1.500,00</td><td class="r" data-pct="1.52"><span class="pill neg">1,5%</span></td></tr>
+          <tr><td>Melo</td><td class="r" data-val="1497">1.497,00</td><td class="r" data-pct="1.51"><span class="pill neg">1,5%</span></td></tr>
+          <tr><td>Allan Freitas</td><td class="r" data-val="1225">1.225,00</td><td class="r" data-pct="1.24"><span class="pill neg">1,2%</span></td></tr>
+          <tr><td>Diesel Posto</td><td class="r" data-val="1178.55">1.178,55</td><td class="r" data-pct="1.19"><span class="pill neg">1,2%</span></td></tr>
+          <tr><td>Outros (tributos, benefícios, serv. variados)</td><td class="r" data-val="6119.20">6.119,20</td><td class="r" data-pct="6.18"><span class="pill neg">6,2%</span></td></tr>
+        </tbody>
+        <tfoot><tr>
+          <td>TOTAL DESPESAS</td>
+          <td class="r">98.953,62</td>
+          <td></td>
+        </tr></tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ TAB: CONTAINERS ══ -->
+<div class="section" id="tab-containers">
+  <div class="card-grid grid-4" style="margin-bottom:20px">
+    <div class="card gold">
+      <div class="c-lbl">Total de Saídas</div>
+      <div class="c-val">260</div>
+      <div class="c-sub">Abril 2026</div>
+    </div>
+    <div class="card accent">
+      <div class="c-lbl">Tipo Dominante</div>
+      <div class="c-val" style="font-size:20px">40HC</div>
+      <div class="c-sub">171 unidades · 65,8%</div>
+    </div>
+    <div class="card success">
+      <div class="c-lbl">Pátio Principal</div>
+      <div class="c-val" style="font-size:20px">PT 1</div>
+      <div class="c-sub">188 containers · 72,3%</div>
+    </div>
+    <div class="card accent">
+      <div class="c-lbl">Principal Transportadora</div>
+      <div class="c-val" style="font-size:18px">Costalog</div>
+      <div class="c-sub">49 cont. · 18,8%</div>
+    </div>
+  </div>
+
+  <div class="card-grid grid-2">
+    <div class="panel">
+      <div class="panel-hdr">
+        <span class="panel-title">Containers por Pátio</span>
+        <span class="panel-badge">260 total</span>
+      </div>
+      <div class="chart-wrap short">
+        <canvas id="chartPatio"></canvas>
+      </div>
+      <div class="bar-list" style="margin-top:16px">
+        <div class="bar-row">
+          <span class="bar-lbl">PT 1 (variantes)</span>
+          <div class="bar-track"><div class="bar-fill a" data-w="72.3"></div></div>
+          <span class="bar-val">188 · 72,3%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">PT 2 (variantes)</span>
+          <div class="bar-track"><div class="bar-fill s" data-w="19.6"></div></div>
+          <span class="bar-val">51 · 19,6%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">Pátio 1</span>
+          <div class="bar-track"><div class="bar-fill g" data-w="3.8"></div></div>
+          <span class="bar-val">10 · 3,8%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">Sem Pátio</span>
+          <div class="bar-track"><div class="bar-fill m" data-w="4.2"></div></div>
+          <span class="bar-val">11 · 4,2%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-hdr">
+        <span class="panel-title">Containers por Tipo</span>
+        <span class="panel-badge">260 total</span>
+      </div>
+      <div class="chart-wrap short">
+        <canvas id="chartTipo"></canvas>
+      </div>
+      <div class="bar-list" style="margin-top:16px">
+        <div class="bar-row">
+          <span class="bar-lbl">40HC</span>
+          <div class="bar-track"><div class="bar-fill a" data-w="65.8"></div></div>
+          <span class="bar-val">171 · 65,8%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">40RF</span>
+          <div class="bar-track"><div class="bar-fill s" data-w="18.1"></div></div>
+          <span class="bar-val">47 · 18,1%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">20DC</span>
+          <div class="bar-track"><div class="bar-fill g" data-w="15.0"></div></div>
+          <span class="bar-val">39 · 15,0%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">Outros</span>
+          <div class="bar-track"><div class="bar-fill m" data-w="1.2"></div></div>
+          <span class="bar-val">3 · 1,2%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-hdr">
+      <span class="panel-title">Análise de Transportadoras</span>
+      <span class="panel-badge">Contagem de containers</span>
+    </div>
+    <div class="bar-list">
+      <div class="bar-row">
+        <span class="bar-lbl" style="width:160px">Costalog</span>
+        <div class="bar-track"><div class="bar-fill a" data-w="18.8"></div></div>
+        <span class="bar-val">49 cont. · 18,8%</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-lbl" style="width:160px">Demais Transp.</span>
+        <div class="bar-track"><div class="bar-fill s" data-w="81.2"></div></div>
+        <span class="bar-val">211 cont. · 81,2%</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ TAB: OPERACIONAL ══ -->
+<div class="section" id="tab-operacional">
+  <div class="alert-box warn">
+    <span class="alert-icon">📌</span>
+    <div><strong>Atenção Operacional:</strong> O custo médio por container (R$ 380,59) superou o ticket médio (R$ 258,12) em R$ 122,47. Redução de despesas fixas ou aumento de volume são necessários para equilibrar o resultado.</div>
+  </div>
+
+  <div class="card-grid grid-3">
+    <div class="card danger">
+      <div class="c-lbl">Margem Bruta</div>
+      <div class="c-val">–11,1%</div>
+      <div class="c-sub">Resultado / Receita</div>
+    </div>
+    <div class="card success">
+      <div class="c-lbl">Ticket Médio</div>
+      <div class="c-val" style="font-size:22px">R$258,12</div>
+      <div class="c-sub">Receita / 260 containers</div>
+    </div>
+    <div class="card danger">
+      <div class="c-lbl">Custo Médio</div>
+      <div class="c-val" style="font-size:22px">R$380,59</div>
+      <div class="c-sub">Despesas / 260 containers</div>
+    </div>
+  </div>
+
+  <div class="card-grid grid-2">
+    <div class="panel">
+      <div class="panel-hdr">
+        <span class="panel-title">Indicadores de Desempenho</span>
+        <span class="panel-badge">Abril 2026</span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Indicador</th><th class="r">Valor</th></tr></thead>
+          <tbody>
+            <tr><td>Receita Total</td><td class="r"><span class="pill pos">R$ 89.076,62</span></td></tr>
+            <tr><td>Despesas Total</td><td class="r"><span class="pill neg">R$ 98.953,62</span></td></tr>
+            <tr><td>Resultado</td><td class="r"><span class="pill neg">–R$ 9.877,00</span></td></tr>
+            <tr><td>Margem Bruta</td><td class="r"><span class="pill neg">–11,1%</span></td></tr>
+            <tr><td>Ticket médio por container</td><td class="r">R$ 258,12</td></tr>
+            <tr><td>Custo médio por container</td><td class="r">R$ 380,59</td></tr>
+            <tr><td>Diferença custo × ticket</td><td class="r"><span class="pill neg">–R$ 122,47</span></td></tr>
+            <tr><td>Total containers movimentados</td><td class="r"><span class="pill gold">260 unid.</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-hdr">
+        <span class="panel-title">Destaques Operacionais</span>
+        <span class="panel-badge">Período</span>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Indicador</th><th class="r">Valor</th></tr></thead>
+          <tbody>
+            <tr><td>Container mais frequente</td><td class="r"><span class="pill neu">40HC (171 unid.)</span></td></tr>
+            <tr><td>Pátio com maior volume</td><td class="r">PT 1 (188 cont. / 72,3%)</td></tr>
+            <tr><td>Principal transportadora</td><td class="r">Costalog (49 · 18,8%)</td></tr>
+            <tr><td>Principal despesa</td><td class="r">ACTA Aluguel Pátio 2</td></tr>
+            <tr><td>Peso da maior despesa</td><td class="r"><span class="pill neg">22,0% do total</span></td></tr>
+            <tr><td>Fontes de receita</td><td class="r">4 serviços</td></tr>
+            <tr><td>Lançamentos de despesa</td><td class="r">38 lançamentos</td></tr>
+            <tr><td>Viagens de transporte</td><td class="r">66 viagens</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-hdr">
+      <span class="panel-title">Receita × Despesas × Resultado</span>
+      <span class="panel-badge">Abril 2026</span>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="chartComp"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <span>Finansys</span> | Terminal Carga Pesada | Fechamento Abril 2026 | Gerado em 16/05/2026
+</div>
+</div><!-- .content -->
+
+<script>
+// ── TABS ──────────────────────────────────────────────
+const tabs = document.querySelectorAll('.tab');
+const sections = document.querySelectorAll('.section');
+const chartInited = {};
+
+tabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    tabs.forEach(t => t.classList.remove('active'));
+    sections.forEach(s => s.classList.remove('active'));
+    tab.classList.add('active');
+    const id = 'tab-' + tab.dataset.tab;
+    document.getElementById(id).classList.add('active');
+    setTimeout(() => initCharts(tab.dataset.tab), 60);
+    animateBars();
+  });
+});
+
+// ── BAR ANIMATIONS ──────────────────────────────────
+function animateBars() {
+  document.querySelectorAll('.bar-fill[data-w]').forEach(el => {
+    const w = el.dataset.w;
+    el.style.width = '0';
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { el.style.width = w + '%'; });
+    });
+  });
+}
+
+// ── CHARTS ──────────────────────────────────────────
+const COLORS = {
+  blue: '#5eb3f5', teal: '#4ecdc4', gold: '#f5c842',
+  red: '#ff6b6b', orange: '#ffa756', purple: '#a07af5',
+  green: '#6bcf7f', muted: '#7aacda',
+};
+Chart.defaults.color = '#7aacda';
+Chart.defaults.borderColor = '#1e3a5f';
+Chart.defaults.font.family = "'Segoe UI', Arial, sans-serif";
+
+function donut(id, labels, data, colors) {
+  if (chartInited[id]) return;
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  chartInited[id] = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: '#0a1628', hoverOffset: 8 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '68%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.label}: ${ctx.raw.toLocaleString('pt-BR',{minimumFractionDigits:1})}%`
+          }
+        }
+      }
+    }
+  });
+  // legend
+  const leg = document.getElementById('leg'+id.charAt(5).toUpperCase()+id.slice(6));
+  if (leg) {
+    labels.forEach((l,i) => {
+      leg.innerHTML += `<div class="legend-item"><span class="legend-dot" style="background:${colors[i]}"></span>${l}<span class="legend-pct">${data[i]}%</span></div>`;
+    });
+  }
+}
+
+function buildLegend(legId, labels, colors, values) {
+  const el = document.getElementById(legId);
+  if (!el || el.innerHTML) return;
+  labels.forEach((l,i) => {
+    el.innerHTML += `<div class="legend-item"><span class="legend-dot" style="background:${colors[i]}"></span>${l}<span class="legend-pct">${values[i]}</span></div>`;
+  });
+}
+
+function initCharts(tab) {
+  if (tab === 'receita' || tab === 'geral') {
+    if (!chartInited['chartReceita']) {
+      const ctx = document.getElementById('chartReceita');
+      if (ctx) {
+        chartInited['chartReceita'] = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Movimentação','Transporte','Pernoite','Impressão'],
+            datasets: [{
+              data: [75.3, 20.3, 4.2, 0.1],
+              backgroundColor: [COLORS.blue, COLORS.teal, COLORS.gold, COLORS.purple],
+              borderWidth: 2, borderColor: '#0a1628', hoverOffset: 8
+            }]
+          },
+          options: {
+            responsive:true, maintainAspectRatio:false, cutout:'68%',
+            plugins: { legend:{display:false},
+              tooltip:{ callbacks:{ label: c => ` ${c.label}: ${c.raw}%` } }
+            }
+          }
+        });
+        buildLegend('legReceita',
+          ['Movimentação · R$67.110','Transporte · R$18.100','Pernoite · R$3.750','Impressão · R$117'],
+          [COLORS.blue, COLORS.teal, COLORS.gold, COLORS.purple],
+          ['75,3%','20,3%','4,2%','0,1%']
+        );
+      }
+    }
+  }
+
+  if (tab === 'despesas') {
+    if (!chartInited['chartDespesas']) {
+      const ctx = document.getElementById('chartDespesas');
+      if (ctx) {
+        chartInited['chartDespesas'] = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['ACTA Aluguel Pátio 2','Débito Arrecadação','Aluguel Pátio 1','Motorista Anderson','Motorista Rafael','VR Benefícios','Porta','ACTA','Depósito Alemão','Outros'],
+            datasets: [{
+              data: [22.0, 11.5, 10.1, 8.2, 5.1, 4.7, 4.3, 4.0, 3.4, 26.7],
+              backgroundColor: ['#ff6b6b','#ff8f8f','#ffaaaa','#ffa756','#f5c842','#4ecdc4','#5eb3f5','#a07af5','#6bcf7f','#7aacda'],
+              borderWidth: 2, borderColor: '#0a1628', hoverOffset: 8
+            }]
+          },
+          options: {
+            responsive:true, maintainAspectRatio:false, cutout:'64%',
+            plugins: { legend:{display:false},
+              tooltip:{ callbacks:{ label: c => ` ${c.label}: ${c.raw}%` } }
+            }
+          }
+        });
+        buildLegend('legDespesas',
+          ['ACTA Aluguel Pátio 2','Débito Arrecadação','Aluguel Pátio 1','Motorista Anderson','Outros'],
+          ['#ff6b6b','#ff8f8f','#ffaaaa','#ffa756','#7aacda'],
+          ['22,0%','11,5%','10,1%','8,2%','48,2%']
+        );
+      }
+    }
+  }
+
+  if (tab === 'containers') {
+    if (!chartInited['chartPatio']) {
+      const ctx = document.getElementById('chartPatio');
+      if (ctx) {
+        chartInited['chartPatio'] = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['PT 1','PT 2','Pátio 1','Sem Pátio'],
+            datasets: [{
+              data: [72.3, 19.6, 3.8, 4.2],
+              backgroundColor: [COLORS.blue, COLORS.teal, COLORS.gold, COLORS.purple],
+              borderWidth: 2, borderColor: '#0a1628', hoverOffset: 8
+            }]
+          },
+          options: { responsive:true, maintainAspectRatio:false, cutout:'68%',
+            plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: c => ` ${c.label}: ${c.raw}%` } } }
+          }
+        });
+      }
+    }
+    if (!chartInited['chartTipo']) {
+      const ctx = document.getElementById('chartTipo');
+      if (ctx) {
+        chartInited['chartTipo'] = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['40HC','40RF','20DC','Outros'],
+            datasets: [{
+              data: [65.8, 18.1, 15.0, 1.2],
+              backgroundColor: [COLORS.blue, COLORS.teal, COLORS.gold, COLORS.purple],
+              borderWidth: 2, borderColor: '#0a1628', hoverOffset: 8
+            }]
+          },
+          options: { responsive:true, maintainAspectRatio:false, cutout:'68%',
+            plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: c => ` ${c.label}: ${c.raw}%` } } }
+          }
+        });
+      }
+    }
+  }
+
+  if (tab === 'operacional') {
+    if (!chartInited['chartComp']) {
+      const ctx = document.getElementById('chartComp');
+      if (ctx) {
+        chartInited['chartComp'] = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['Receita Total','Despesas Total','Resultado'],
+            datasets: [{
+              label: 'Valor (R$)',
+              data: [89076.62, 98953.62, -9877],
+              backgroundColor: ['rgba(78,205,196,.75)','rgba(255,107,107,.75)','rgba(255,107,107,.5)'],
+              borderColor: [COLORS.teal, COLORS.red, COLORS.red],
+              borderWidth: 2, borderRadius: 6
+            }]
+          },
+          options: {
+            responsive:true, maintainAspectRatio:false,
+            plugins:{ legend:{display:false},
+              tooltip:{ callbacks:{ label: c => ' R$ ' + c.raw.toLocaleString('pt-BR',{minimumFractionDigits:2}) } }
+            },
+            scales:{
+              y:{ ticks:{ callback: v => 'R$'+Math.abs(v/1000).toFixed(0)+'k' }, grid:{color:'rgba(30,58,95,.6)'} },
+              x:{ grid:{display:false} }
+            }
+          }
+        });
+      }
+    }
+  }
+}
+
+// ── FILTER DESPESAS ──────────────────────────────────
+function filtrarDespesas() {
+  const q = document.getElementById('filtDesp').value.toLowerCase();
+  const rows = document.querySelectorAll('#tbodyDesp tr');
+  let vis = 0;
+  rows.forEach(r => {
+    const txt = r.cells[0].textContent.toLowerCase();
+    const show = txt.includes(q);
+    r.style.display = show ? '' : 'none';
+    if (show) vis++;
+  });
+  document.getElementById('filtCount').textContent = vis + ' itens';
+}
+
+// ── SORT TABLE ───────────────────────────────────────
+let sortState = {};
+function sortTable(tableId, col) {
+  const tbody = document.querySelector('#'+tableId+' tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const key = tableId+'-'+col;
+  const asc = !sortState[key];
+  sortState[key] = asc;
+
+  // update header
+  document.querySelectorAll('#'+tableId+' thead th').forEach((th,i) => {
+    th.classList.remove('sorted-asc','sorted-desc');
+    if (i === col) th.classList.add(asc ? 'sorted-asc' : 'sorted-desc');
+  });
+
+  rows.sort((a,b) => {
+    const ac = a.cells[col];
+    const bc = b.cells[col];
+    const av = ac.dataset.val || ac.dataset.pct || ac.textContent.trim();
+    const bv = bc.dataset.val || bc.dataset.pct || bc.textContent.trim();
+    const an = parseFloat(av.replace(/[^\d.-]/g,''));
+    const bn = parseFloat(bv.replace(/[^\d.-]/g,''));
+    if (!isNaN(an) && !isNaN(bn)) return asc ? an-bn : bn-an;
+    return asc ? av.localeCompare(bv) : bv.localeCompare(av);
+  });
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+// ── INIT ON LOAD ─────────────────────────────────────
+window.addEventListener('load', () => {
+  animateBars();
+  initCharts('geral');
+  initCharts('receita');
+});
+</script>
+</body>
+</html>
